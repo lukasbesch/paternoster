@@ -1,0 +1,28 @@
+{
+  "name": "paternoster-game",
+  "authors": [
+    "Lukas Besch <connect@lukasbesch.com>"
+  ],
+  "description": "application for KISD",
+  "main": "index.html",
+  "keywords": [
+    "game",
+    "phaser.io",
+    "paternoster",
+    "lift",
+    "jumpnrun"
+  ],
+  "license": "MIT",
+  "homepage": "http://lukasbesch.com",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "phaser": "^2.4.7"
+  }
+}

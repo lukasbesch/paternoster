@@ -1,0 +1,271 @@
+<!doctype html> 
+<html lang="en"> 
+<head> 
+	<meta charset="UTF-8" />
+    <title>Phaser - Making your first game, part 9</title>
+	<script type="text/javascript" src="./phaser/build/phaser.js"></script>
+    <style type="text/css">
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+
+<script type="text/javascript">
+/* global Phaser */
+
+var game = new Phaser.Game(1024, 768, Phaser.AUTO, '', { preload: preload, create: create, update: update });
+
+function preload() {
+
+/*    
+    game.load.image('ground', 'assets/platform.png');
+    game.load.image('star', 'assets/star.png');*/
+    
+    game.load.image('sky', 'assets/sky.png');
+    game.load.image('env-platform', 'assets/env-platform.png');
+    game.load.image('platform', 'assets/platform.png');
+    game.load.image('cabin', 'assets/cabin.png');
+    
+    game.load.spritesheet('dude', 'assets/dude.png', 32, 48);
+    game.load.spritesheet('enemy', 'assets/dude.png', 32, 48);
+
+}
+
+var env;
+var envPlatforms;
+var platforms;
+var lift;
+var cabin;
+var player;
+var enemies;
+var enemySpeed = 133;
+
+var cursors;
+
+/*
+
+var stars;
+var score = 0;
+var scoreText;*/
+
+var paternoster = {};
+paternoster.movingSpeed = 100;
+
+function create() {
+
+    //  Our controls.
+    cursors = game.input.keyboard.createCursorKeys();
+    
+    //  We're going to be using physics, so enable the Arcade Physics system
+    game.physics.startSystem(Phaser.Physics.ARCADE);
+
+    //  A simple background for our game
+    var background = game.add.sprite(0, 0, 'sky');
+    background.scale.setTo(1.5, 1.5);
+    
+    env = game.add.group();
+    env.enableBody = true;
+    
+    envPlatforms = [];
+    envPlatforms.topLeft     = env.create(  0,   0, 'env-platform');
+    envPlatforms.topRight    = env.create(640,   0, 'env-platform');
+    envPlatforms.bottomLeft  = env.create(  0, 624, 'env-platform');
+    envPlatforms.bottomRight = env.create(640, 624, 'env-platform');
+    
+    platforms = []
+    platforms.topLeft        = env.create(  0, 240, 'platform');
+    platforms.topRight       = env.create(640, 240, 'platform');
+    platforms.middleLeft     = env.create(  0, 368, 'platform');
+    platforms.middleRight    = env.create(640, 368, 'platform');
+    platforms.middletomLeft  = env.create(  0, 496, 'platform');
+    platforms.bottomRight    = env.create(640, 496, 'platform');
+    
+    env.forEach(function(item) {
+        item.body.immovable = true;
+    });
+
+
+    //  The lift group contains the ground and the 2 cabins we can jump on
+    lift = game.add.group();
+
+    //  We will enable physics for any object that is created in this group
+    lift.enableBody = true;
+
+    //  Now let's create two cabins
+    cabin = lift.create(384, 496, 'cabin');
+    cabin.body.immovable = true;
+    cabin.body.velocity.setTo(0, -1 * paternoster.movingSpeed);
+
+    // The player and its settings
+    player = game.add.sprite(32, 528, 'dude');
+
+    //  We need to enable physics on the player
+    game.physics.arcade.enable(player);
+
+    //  Player physics properties. Give the little guy a slight bounce.
+    player.body.bounce.y = 0.2;
+    player.body.gravity.y = 300;
+    player.body.collideWorldBounds = true;
+
+    //  Our two animations, walking left and right.
+    player.animations.add('left', [0, 1, 2, 3], 10, true);
+    player.animations.add('right', [5, 6, 7, 8], 10, true);
+    
+    var enemy = new Enemy(game,  48, 176,  1, enemySpeed);
+	game.add.existing(enemy);
+    //var enemy = new Enemy(game, 912, 561, -1, enemySpeed);
+	//game.add.existing(enemy);
+    
+    /*
+
+    //  Finally some stars to collect
+    stars = game.add.group();
+
+    //  We will enable physics for any star that is created in this group
+    stars.enableBody = true;
+
+    //  Here we'll create 12 of them evenly spaced apart
+    for (var i = 0; i < 12; i++)
+    {
+        //  Create a star inside of the 'stars' group
+        var star = stars.create(i * 70, 0, 'star');
+
+        //  Let gravity do its thing
+        star.body.gravity.y = 300;
+
+        //  This just gives each star a slightly random bounce value
+        star.body.bounce.y = 0.7 + Math.random() * 0.2;
+    }
+
+    //  The score
+    scoreText = game.add.text(16, 16, 'score: 0', { fontSize: '32px', fill: '#000' });
+    */
+    
+}
+
+function update() {
+
+    //  Collide the player and the stars with the lift
+    game.physics.arcade.collide(player, env);
+    game.physics.arcade.collide(player, lift);
+/*    game.physics.arcade.collide(stars, lift);*/
+
+    //  Checks to see if the player overlaps with any of the stars, if he does call the collectStar function
+/*    game.physics.arcade.overlap(player, stars, collectStar, null, this);*/
+
+    //  Reset the players velocity (movement)
+    player.body.velocity.x = 0;
+
+    if (cursors.left.isDown)
+    {
+        //  Move to the left
+        player.body.velocity.x = -150;
+
+        player.animations.play('left');
+    }
+    else if (cursors.right.isDown)
+    {
+        //  Move to the right
+        player.body.velocity.x = 150;
+
+        player.animations.play('right');
+    }
+    else if (cursors.up.isDown)
+    {
+        //  Move to the right
+        player.body.velocity.y = -150;
+
+        player.animations.play('up');
+    }
+    else
+    {
+        //  Stand still
+        player.animations.stop();
+
+        player.frame = 4;
+    }
+    
+    //  Allow the player to jump if they are touching the ground.
+    if (cursors.up.isDown/* && player.body.touching.down*/)
+    {
+        player.body.velocity.y = -350;
+    }
+    
+    lift.forEach(function(item) {
+        
+        var offsetY = 0;
+        var platformWidth = 200;
+        var speed = paternoster.movingSpeed;
+    
+        if (item.position.y <= -16) {
+            
+            item.position.y = -16;
+            
+            if (item.position.x <= 384) {
+                item.body.velocity.setTo(speed, 0);
+            } else
+            if (item.position.x >= 528) {
+                item.body.velocity.setTo(0, speed);
+            }
+            
+        } else
+        if (item.position.y >= ( game.world.height - 144 - 16 )) {
+            
+            item.position.y = ( game.world.height - 144 - 16 );
+            
+            if (item.position.x >= 528) {
+                item.body.velocity.setTo(speed * -1, 0);
+            } else
+            if (item.position.x <= 384) {
+                item.body.velocity.setTo(0, speed * -1);
+            }
+            
+        }
+    });
+
+}
+
+var Enemy = function (game, x, y, direction, speed) {
+	Phaser.Sprite.call(this, game, x, y, "enemy");
+	game.physics.enable(this, Phaser.Physics.ARCADE);
+	this.anchor.setTo(0.5);
+	this.xSpeed = direction * speed;
+	
+    this.body.bounce.y = 0.2;
+    this.body.gravity.y = 300;
+    this.body.collideWorldBounds = true;
+};
+	
+Enemy.prototype = Object.create(Phaser.Sprite.prototype);
+Enemy.prototype.constructor = Enemy;
+
+Enemy.prototype.update = function() {
+   	game.physics.arcade.collide(this, env, moveEnemy);
+	this.body.velocity.x = this.xSpeed;
+};
+
+function moveEnemy(enemy, sprite){
+    console.log(enemy.xSpeed, enemy.x, sprite.x, sprite.width);
+	if (enemy.xSpeed >= 0 && enemy.x >= sprite.x + sprite.width - enemy.width
+	 || enemy.xSpeed <= 0 && enemy.x <= sprite.x + 16) {
+		enemy.xSpeed *= -1;
+	}	
+}
+
+/*function collectStar (player, star) {
+    
+    // Removes the star from the screen
+    star.kill();
+
+    //  Add and update the score
+    score += 10;
+    scoreText.text = 'Score: ' + score;
+
+}*/
+
+</script>
+
+</body>
+</html>
