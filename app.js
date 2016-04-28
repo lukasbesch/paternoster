@@ -6,6 +6,12 @@
         this.trees = null;
 
         this.player = null;
+        this.playerSpeed = 150;
+        this.playerJumpSpeed = 300;
+        
+        this.enemies = null;
+        this.enemySpeed = this.playerSpeed * 4 / 3;
+        this.enemySpeed = 100;
 
         this.stationary = null;
         this.cages = null;
@@ -17,6 +23,12 @@
         this.lockedTo = null;
         this.wasLocked = false;
         this.willJump = false;
+        
+        
+        this.enemyLocked = false;
+        this.enemyLockedTo = null;
+        
+        this.elevatorSpeedY = 4500;
 
     };
 
@@ -86,9 +98,9 @@
             
             var distanceY = 592;
             var distanceX = 144;
-            var durationY = 3000;
+            var durationY = this.elevatorSpeedY;
             var durationX = distanceX / distanceY * durationY;
-            console.log(distanceX, distanceY, durationX, durationY);
+            //console.log(distanceX, distanceY, durationX, durationY);
             
             cage1.addMotionPath([
                 { y: "-" + distanceY, ySpeed: durationY, yEase: "Linear" },
@@ -96,6 +108,9 @@
                 { y: "+" + distanceY, ySpeed: durationY, yEase: "Linear" },
                 { x: "-" + distanceX, xSpeed: durationX, xEase: "Linear" },
             ]);
+
+            this.cages.setAll('body.allowGravity', false);
+            this.cages.setAll('body.immovable', true);
 
             //  The Player
             this.player = this.add.sprite(32, 0, 'dude');
@@ -108,7 +123,17 @@
             this.player.animations.add('left', [0, 1, 2, 3], 10, true);
             this.player.animations.add('turn', [4], 20, true);
             this.player.animations.add('right', [5, 6, 7, 8], 10, true);
-
+            
+            this.enemies = this.add.group();
+            
+            var enemy = new Enemy(this,  48, 176,  1, this.enemySpeed);
+            this.enemies.add(enemy);
+            
+            enemy = new Enemy(this,  480, 176,  1, this.enemySpeed);
+            //this.enemies.add(enemy);
+            
+            //console.log(enemy, this.enemies);
+            
             this.cursors = this.input.keyboard.createCursorKeys();
 
             this.cages.callAll('start');
@@ -128,12 +153,14 @@
 
         },
 
-        checkLock: function () {
+        checkLock: function (player) {
 
-            this.player.body.velocity.y = 0;
+            player.body.velocity.y = 0;
+            
+            //console.log(player);
 
             //  If the player has walked off either side of the platform then they're no longer locked to it
-            if (this.player.body.right < this.lockedTo.body.x || this.player.body.x > this.lockedTo.body.right)
+            if (player.body.right < this.lockedTo.body.x || player.body.x > this.lockedTo.body.right)
             {
                 this.cancelLock();
             }
@@ -148,12 +175,32 @@
         },
 
         preRender: function () {
+            
+            var that = this;
 
             if (this.game.paused)
             {
                 //  Because preRender still runs even if your game pauses!
                 return;
             }
+            
+            this.enemies.forEach(function(enemy){
+
+                if (that.enemyLocked)
+                {
+                    enemy.x += that.enemyLockedTo.deltaX;
+                    enemy.y = that.enemyLockedTo.y - 24;
+                    
+                    enemy.body.velocity.x = 0;
+                    enemy.body.velocity.y = 0;
+    
+                    if (enemy.body.velocity.x !== 0)
+                    {
+                        enemy.body.velocity.y = 0;
+                    }
+                }
+                
+            });
 
             if (this.locked || this.wasLocked)
             {
@@ -253,7 +300,7 @@
 
             if (this.locked)
             {
-                this.checkLock();
+                this.checkLock(this.player);
             }
 
         }
@@ -263,7 +310,9 @@
     ElevatorCage = function (game, x, y, key, group) {
 
         if (typeof group === 'undefined') { group = game.world; }
-
+        
+        //console.log(Phaser);
+        
         Phaser.Sprite.call(this, game, x, y, key);
 
         game.physics.arcade.enable(this);
@@ -276,6 +325,7 @@
         this.body.immovable = true;
 
         this.playerLocked = false;
+        this.enemyLocked = false;
 
         group.add(this);
 
@@ -312,6 +362,130 @@
 
         this.tween.stop();
 
+    };
+    
+    
+    var Enemy = function (game, x, y, direction, speed) {
+    	Phaser.Sprite.call(this, game, x, y, "enemy");
+    	this.game.physics.arcade.enable(this);
+    	this.anchor.setTo(0.5);
+    	this.xSpeed = direction * speed;
+    	
+        this.body.bounce.y = 0.2;
+        this.body.gravity.y = 300;
+        this.body.collideWorldBounds = true;
+    };
+    	
+    Enemy.prototype = Object.create(Phaser.Sprite.prototype);
+    Enemy.prototype.constructor = Enemy;
+    
+    Enemy.prototype.update = function() {
+        var that = this;
+       	this.game.enemies.forEach(function(enemy) {
+            that.game.physics.arcade.collide(enemy, that.game.stationary, that.moveEnemy);
+            that.game.physics.arcade.collide(enemy, that.game.cages, that.liftEnemy, null, that);
+            //that.game.physics.arcade.collide(enemy, that.game.cages, that.moveEnemyOnTween, null, that);
+            
+            //  Do this AFTER the collide check, or we won't have blocked/touching set
+
+            enemy.body.velocity.x = 0;
+            
+            if (enemy.facing !== 'idle')
+            {
+                enemy.animations.stop();
+
+                if (enemy.facing === 'left')
+                {
+                    enemy.frame = 0;
+                }
+                else
+                {
+                    enemy.frame = 5;
+                }
+
+                enemy.facing = 'idle';
+            }
+
+            if (this.enemyLocked)
+            {
+                that.checkLock(enemy);
+            }
+            
+       	});
+        //this.physics.arcade.collide(this.player, this.cages, this.customSep, null, this);
+    	this.body.velocity.x = this.xSpeed;
+    };
+    
+    Enemy.prototype.moveEnemy = function (player, platform) {
+        
+        console.log('moveEnemy');
+        
+        if (platform.x <= 0 && player.xSpeed >= 0 && player.x >= platform.x + platform.width - player.width) {
+            player.game.cages.forEach(function( cage ) {
+                var distance = player.game.physics.arcade.distanceBetween( player, cage );
+                
+                if( distance > 144 ) {
+                    return;
+                }
+                
+                if (cage.body.y >= player.y && cage.body.y <= player.y + 144) {
+                    
+                    platform.playerLocked = true;
+                    
+                    player.enterCage = true;
+                    player.body.velocity.y = 0;
+                    
+                }
+            });
+        }
+        
+        if (player.enterCage) {
+            return;
+        }
+        
+        if (platform.x >= player.game.world.width - platform.width &&
+            (player.xSpeed <= 0 && player.x <= platform.x)) {
+        
+            console.log('1');
+        }
+        
+    	if (player.xSpeed >= 0 && player.x >= platform.x + platform.width - player.width
+    	 || player.xSpeed <= 0 && player.x <= platform.x + 16) {
+    		player.xSpeed *= -1;
+    	}	
+    };
+    
+    Enemy.prototype.liftEnemy = function (player, platform) {
+        
+        console.log('liftEnemy');
+        console.log(player.game, player.game.enemyLocked);
+        
+        player.enterCage = false;
+        player.inCage = true;
+
+        if (!player.game.enemyLocked && player.body.velocity.y > 0)
+        {
+            player.game.enemyLocked = true;
+            player.game.enemyLockedTo = platform;
+            platform.enemyLocked = true;
+
+            player.body.velocity.y = 0;
+            player.body.velocity.x = 0;
+        }
+        
+    };
+    
+    Enemy.prototype.checkLock = function (player) {
+
+        player.body.velocity.y = 0;
+        
+        //console.log(player);
+
+        //  If the player has walked off either side of the platform then they're no longer locked to it
+/*        if (player.body.right < this.enemyLockedTo.body.x || player.body.x > this.enemyLockedTo.body.right)
+        {
+            this.cancelLock();
+        }*/
     };
 
     game.state.add('Game', PhaserGame, true);
