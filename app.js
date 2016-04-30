@@ -5,8 +5,8 @@
         this.options = {
             gravity:            600,
             distanceFloors:     112,
-            cageDurationY:      3000,
-            enemySpeed:         150,
+            cageDurationY:      3750,
+            enemySpeed:         120,
             maxDropDistance:    112
         };
         
@@ -90,6 +90,40 @@
                 { x: "-" + distanceX, xSpeed: durationX, xEase: "Linear" },
             ]);
 
+            var cage2 = new ElevatorCage(this.game, 384, 144, 'cabin-ground', this.cages);
+            
+            var distanceY = this.options.distanceFloors * 5;
+            var distanceX = 144;
+            var durationY = this.options.cageDurationY;
+            var durationX = distanceX / distanceY * durationY;
+            
+            cage2.addMotionPath([
+                { x: "+" + distanceX, xSpeed: durationX, xEase: "Linear" },
+                { y: "+" + 3 * this.options.distanceFloors, ySpeed: durationY * (3/5), yEase: "Linear" },
+                
+                { y: "+" + 2 * this.options.distanceFloors, ySpeed: durationY * (2/5), yEase: "Linear" },
+                { x: "-" + distanceX, xSpeed: durationX, xEase: "Linear" },
+                
+                { y: "-" + distanceY, ySpeed: durationY, yEase: "Linear" },
+            ]);
+
+            var cage3 = new ElevatorCage(this.game, 528, 368 + this.options.distanceFloors, 'cabin-ground', this.cages);
+            
+            var distanceY = this.options.distanceFloors * 5;
+            var distanceX = 144;
+            var durationY = this.options.cageDurationY;
+            var durationX = distanceX / distanceY * durationY;
+            
+            cage3.addMotionPath([
+                
+                { y: "+" + 2 * this.options.distanceFloors, ySpeed: durationY * (2/5), yEase: "Linear" },
+                { x: "-" + distanceX, xSpeed: durationX, xEase: "Linear" },
+                
+                { y: "-" + distanceY, ySpeed: durationY, yEase: "Linear" },
+                { x: "+" + distanceX, xSpeed: durationX, xEase: "Linear" },
+                { y: "+" + 3 * this.options.distanceFloors, ySpeed: durationY * (3/5), yEase: "Linear" },
+            ]);
+
             this.cages.setAll('body.allowGravity', false);
             this.cages.setAll('body.immovable', true);
 
@@ -157,29 +191,38 @@
             return false;
         },
         
+        canReachPlatform: function(player, platform) {
+            
+            // platform too high
+            if (platform.body.y <= player.y + player.height * 0.5) {
+                return false;
+            }
+            // platform too low
+            if (platform.body.y >= player.y + player.height * 0.5 + this.options.maxDropDistance) {
+                return false;
+            }
+            
+            var leftTop = platform.x;
+            var rightTop = leftTop + platform.width;
+            
+            var distance = Math.min(
+                player.game.physics.arcade.distanceToXY( player, leftTop, platform.y ),
+                player.game.physics.arcade.distanceToXY( player, rightTop, platform.y )
+            );
+            
+            if( distance > this.options.maxDropDistance ) {
+                return false;
+            }
+            
+            return true;
+        },
+        
         maybeEnterCage: function(player, platform) {
             var that = this;
                     
             player.game.cages.forEach(function( cage ) {
                 
-                // platform too high
-                if (cage.body.y <= player.y + player.height * 0.5) {
-                    return;
-                }
-                // platform too low
-                if (cage.body.y >= player.y + player.height * 0.5 + that.options.maxDropDistance) {
-                    return;
-                }
-                
-                var leftTop = cage.x;
-                var rightTop = leftTop + cage.width;
-                
-                var distance = Math.min(
-                    player.game.physics.arcade.distanceToXY( player, leftTop, cage.y ),
-                    player.game.physics.arcade.distanceToXY( player, rightTop, cage.y )
-                );
-                
-                if( distance > that.options.maxDropDistance ) {
+                if (!that.canReachPlatform(player, cage)) {
                     return;
                 }
                 
@@ -188,6 +231,33 @@
             });
             
             if (player.enterCage) {
+                return true;
+            }
+            
+            return false;
+            
+        },
+        
+        maybeLeaveCage: function(player, platform) {
+            var that = this;
+                    
+            player.game.floors.forEach(function( floor ) {
+                
+                if (!that.canReachPlatform(player, floor)) {
+                    return;
+                }
+                
+                var index = platform.lockedPlayers.indexOf(player);
+                
+                if (index > -1) {
+                    platform.lockedPlayers.splice(index, 1);
+                }
+                
+                player.leaveCage = player.lockedTo;
+                player.enterPlatform = floor;
+            });
+            
+            if (player.leaveCage) {
                 return true;
             }
             
@@ -270,6 +340,9 @@
         
         this.enterCage = false;
         this.leaveCage = false;
+        
+        this.enterFloor = false;
+        this.leaveFloor = false;
     };
     	
     Enemy.prototype = Object.create(Phaser.Sprite.prototype);
@@ -299,13 +372,19 @@
     Enemy.prototype.lift = function (enemy, platform) {
         
         if ( platform.lockedPlayers.indexOf(enemy) === -1 && enemy.body.velocity.y > 0 ) {
+            
             platform.lockedPlayers.push(enemy);
             
             enemy.enterCage = false;
             enemy.lockedTo = platform;
         }
         
-        this.moveOnPlatform(enemy, platform);
+        console.log(!this.game.reachingEdge(enemy, platform));
+        
+        if (!this.game.reachingEdge(enemy, platform)
+            || !this.game.maybeLeaveCage(enemy, platform)) {
+            this.moveOnPlatform(enemy, platform);
+        };
         
         
     };
