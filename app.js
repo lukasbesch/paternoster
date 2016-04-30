@@ -5,7 +5,9 @@
         this.options = {
             gravity:            600,
             distanceFloors:     112,
-            cageDurationY:      2000
+            cageDurationY:      3000,
+            enemySpeed:         140,
+            maxDropDistance:    112
         };
         
         this.bg = null;
@@ -97,7 +99,7 @@
             
             this.enemies = this.add.group();
             
-            var enemy = new Enemy('badguy', this,  48, 176,  1, this.enemySpeed);
+            var enemy = new Enemy('badguy', this,  48, 176,  1, this.options.enemySpeed);
             this.enemies.add(enemy);
 
         },
@@ -129,6 +131,57 @@
 
         update: function () {
 
+        },
+        
+        isInRightHalf: function(item) {
+            
+            return (item.x + item.width * 0.5) >= this.game.world.width * 0.5;
+            
+        },
+        
+        isInLeftHalf: function(item) {
+            
+            return (item.x + item.width * 0.5) < this.game.world.width * 0.5;
+            
+        },
+        
+        maybeEnterCage: function(player, platform) {
+            var that = this;
+                    
+            player.game.cages.forEach(function( cage ) {
+                
+                // platform too high
+                if (cage.body.y <= player.y + player.height * 0.5) {
+                    return;
+                }
+                // platform too low
+                if (cage.body.y >= player.y + player.height * 0.5 + that.options.maxDropDistance) {
+                    return;
+                }
+                
+                var leftTop = cage.x;
+                var rightTop = leftTop + cage.width;
+                
+                var distance = Math.min(
+                    player.game.physics.arcade.distanceToXY( player, leftTop, cage.y ),
+                    player.game.physics.arcade.distanceToXY( player, rightTop, cage.y )
+                );
+                
+                if( distance > that.options.maxDropDistance ) {
+                    return;
+                }
+                
+                cage.lockedPlayers.push(player);
+                player.enterCage = cage;
+                player.body.velocity.y = 0;
+            });
+            
+            if (player.enterCage) {
+                return true;
+            }
+            
+            return false;
+            
         }
 
     };
@@ -203,21 +256,44 @@
         this.body.collideWorldBounds = true;
         
         this.enemyID = enemyID;
+        
+        this.enterCage = false;
+        this.leaveCage = false;
     };
     	
     Enemy.prototype = Object.create(Phaser.Sprite.prototype);
     Enemy.prototype.constructor = Enemy;
     
     Enemy.prototype.update = function() {
-        this.game.physics.arcade.collide(this, this.game.floors, this.moveEnemy);
+        this.game.physics.arcade.collide(this, this.game.floors, this.moveOrLeave, null, this);
+        this.body.velocity.x = this.xSpeed;
     };
     
-    Enemy.prototype.moveEnemy = function (enemy, platform) {
-        
+    Enemy.prototype.moveOnPlatform = function (enemy, platform) {
     	if (enemy.xSpeed >= 0 && enemy.x >= platform.x + platform.width - enemy.width
     	 || enemy.xSpeed <= 0 && enemy.x <= platform.x + 16) {
     		enemy.xSpeed *= -1;
     	}
+    };
+    
+    Enemy.prototype.moveOrLeave = function (enemy, platform) {
+        
+        var movedToLeftEdge  = false;
+        var movedToRightEdge = false;
+        
+        if (enemy.xSpeed <= 0 && enemy.x <= platform.x) {
+            movedToLeftEdge = true;
+        }
+        
+        if (enemy.xSpeed >= 0 && enemy.x >= platform.x + platform.width - enemy.width) {
+            movedToRightEdge = true;
+        }
+        
+        if (!movedToLeftEdge && !movedToRightEdge
+            || !this.game.maybeEnterCage(enemy, platform)) {
+            this.moveOnPlatform(enemy, platform);
+        };
+        
     };
     
     Enemy.prototype.liftEnemy = function (player, platform) {
