@@ -14,6 +14,7 @@
         this.enemySpeed = 100;
 
         this.stationary = null;
+        this.platforms = null;
         this.cages = null;
 
         this.facing = 'left';
@@ -28,6 +29,7 @@
         this.enemyLocked = false;
         this.enemyLockedTo = null;
         
+        this.elevatorSpeedY = 4500;
         this.elevatorSpeedY = 4500;
 
     };
@@ -67,11 +69,19 @@
         create: function () {
 
             //  A simple background for our game
-            var background = game.add.sprite(0, 0, 'sky');
+            var background = this.add.sprite(0, 0, 'sky');
             background.scale.setTo(1.5, 1.5);
 
-            //  Platforms that don't move
+            //  Environment
             this.stationary = this.add.physicsGroup();
+            
+            this.stationary.create(496, 160, 'wall');
+            
+            this.stationary.setAll('body.allowGravity', false);
+            this.stationary.setAll('body.immovable', true);
+            
+            //  Platforms that don't move
+            this.platforms = this.add.physicsGroup();
             
             var floors = [];
             var floorY = 592;
@@ -81,15 +91,13 @@
                     floorY -= 112;
                 }
                 floors.push({
-                    left:  this.stationary.create(  0, floorY, 'platform'),
-                    right: this.stationary.create(640, floorY, 'platform')
+                    left:  this.platforms.create(  0, floorY, 'platform'),
+                    right: this.platforms.create(640, floorY, 'platform')
                 });
             }
-            
-            var wall = this.stationary.create(496, 160, 'wall');
 
-            this.stationary.setAll('body.allowGravity', false);
-            this.stationary.setAll('body.immovable', true);
+            this.platforms.setAll('body.allowGravity', false);
+            this.platforms.setAll('body.immovable', true);
 
             //  Platforms that move
             this.cages = this.add.physicsGroup();
@@ -130,6 +138,9 @@
             this.enemies.add(enemy);
             
             enemy = new Enemy(this,  480, 176,  1, this.enemySpeed);
+            //this.enemies.add(enemy);
+            
+            enemy = new Enemy(this,  250, 500,  1, this.enemySpeed);
             //this.enemies.add(enemy);
             
             //console.log(enemy, this.enemies);
@@ -191,13 +202,8 @@
                     enemy.x += that.enemyLockedTo.deltaX;
                     enemy.y = that.enemyLockedTo.y - 24;
                     
-                    enemy.body.velocity.x = 0;
+                    //enemy.body.velocity.x = 0;
                     enemy.body.velocity.y = 0;
-    
-                    if (enemy.body.velocity.x !== 0)
-                    {
-                        enemy.body.velocity.y = 0;
-                    }
                 }
                 
             });
@@ -241,7 +247,7 @@
 
         update: function () {
 
-            this.physics.arcade.collide(this.player, this.stationary);
+            this.physics.arcade.collide(this.player, this.platforms);
             this.physics.arcade.collide(this.player, this.cages, this.customSep, null, this);
 
             //  Do this AFTER the collide check, or we won't have blocked/touching set
@@ -382,14 +388,29 @@
     Enemy.prototype.update = function() {
         var that = this;
        	this.game.enemies.forEach(function(enemy) {
-            that.game.physics.arcade.collide(enemy, that.game.stationary, that.moveEnemy);
+            that.game.physics.arcade.collide(enemy, that.game.platforms, that.moveEnemy);
             that.game.physics.arcade.collide(enemy, that.game.cages, that.liftEnemy, null, that);
             //that.game.physics.arcade.collide(enemy, that.game.cages, that.moveEnemyOnTween, null, that);
             
             //  Do this AFTER the collide check, or we won't have blocked/touching set
 
-            enemy.body.velocity.x = 0;
+            //enemy.body.velocity.x = 0;
+            //enemy.body.velocity.x = -66;
+            enemy.body.velocity.x = enemy.xSpeed;
             
+/*            console.log('enemy', enemy);
+            console.log('that', that);*/
+            
+/*            if (enemy.enterCage) {
+                console.log('enemy enterCage');
+                //return;
+            }*/
+/*            if (enemy.inCage && that.enemyLockedTo) {
+                if (enemy.x === that.enemyLockedTo.x || enemy.y === that.enemyLockedTo.y) {
+                    enemy.body.velocity.x = enemy.body.velocity.x * -1;
+                }
+            }*/
+        
             if (enemy.facing !== 'idle')
             {
                 enemy.animations.stop();
@@ -413,7 +434,7 @@
             
        	});
         //this.physics.arcade.collide(this.player, this.cages, this.customSep, null, this);
-    	this.body.velocity.x = this.xSpeed;
+        //this.body.velocity.x = this.xSpeed;
     };
     
     Enemy.prototype.moveEnemy = function (player, platform) {
@@ -422,7 +443,21 @@
         
         if (platform.x <= 0 && player.xSpeed >= 0 && player.x >= platform.x + platform.width - player.width) {
             player.game.cages.forEach(function( cage ) {
-                var distance = player.game.physics.arcade.distanceBetween( player, cage );
+                
+                // check if platform is below player
+                
+                console.log(cage.body.y <= player.y + player.height , cage.body.y >= player.y + player.height + 144);
+                if (cage.body.y <= player.y + player.height || cage.body.y >= player.y + player.height + 144) {
+                    return;
+                }
+                
+                var leftTop = cage.x;
+                var rightTop = leftTop + cage.width;
+                
+                var distance = Math.min(
+                    player.game.physics.arcade.distanceToXY( player, leftTop, cage.y ),
+                    player.game.physics.arcade.distanceToXY( player, rightTop, cage.y )
+                );
                 
                 if( distance > 144 ) {
                     return;
@@ -430,7 +465,7 @@
                 
                 if (cage.body.y >= player.y && cage.body.y <= player.y + 144) {
                     
-                    platform.playerLocked = true;
+                    platform.enemyLocked = true;
                     
                     player.enterCage = true;
                     player.body.velocity.y = 0;
@@ -456,22 +491,95 @@
     };
     
     Enemy.prototype.liftEnemy = function (player, platform) {
-        
         console.log('liftEnemy');
-        console.log(player.game, player.game.enemyLocked);
         
-        player.enterCage = false;
+        var movedToLeftEdge  = player.xSpeed <= 0 && player.x <= platform.x - player.width;
+        var movedToRightEdge = player.xSpeed >= 0 && player.x <= platform.x - player.width + platform.width;
+        
+/*        console.log('liftEnemy');
+        console.log(player.game, player.game.enemyLocked);*/
+        
         player.inCage = true;
+        player.enterCage = false;
 
         if (!player.game.enemyLocked && player.body.velocity.y > 0)
         {
+            console.log('lock enemy');
             player.game.enemyLocked = true;
             player.game.enemyLockedTo = platform;
             platform.enemyLocked = true;
 
             player.body.velocity.y = 0;
-            player.body.velocity.x = 0;
+/*            player.body.velocity.x = 0;
+            player.body.velocity.x = player.xSpeed;*/
         }
+                
+        console.log(movedToLeftEdge, movedToRightEdge);
+        
+        
+        if (movedToLeftEdge || movedToRightEdge) {
+            player.game.platforms.forEach(function( stationaryPlatform ) {
+                   
+                // check if platform is below player
+                if (stationaryPlatform.body.y >= player.y + player.height || stationaryPlatform.body.y >= player.y + player.height + 144) {
+                    return;
+                }
+                
+                var distanceL  = player.game.physics.arcade.distanceToXY( player, stationaryPlatform.x, stationaryPlatform.y );
+                var distanceR = player.game.physics.arcade.distanceToXY( player, stationaryPlatform.x + stationaryPlatform.width, stationaryPlatform.y );
+                
+                var distance = Math.min(distanceL, distanceR);
+                
+                if( distance > 144 ) {
+                    return;
+                }
+                    
+                player.game.enemyLocked = false;
+                player.game.enemyLockedTo = null;
+                platform.enemyLocked = false;
+                
+                player.leaveCage = ( distance == distanceL ) ? 'left' : 'right';
+                player.body.velocity.y = 0;
+            });
+           
+        }
+        
+        if (player.leaveCage === 'left') {
+           return;
+        }
+        
+        if (player.leaveCage === 'right') {
+           return;
+        }
+        
+        if (!!player.leaveCage) {
+            return;
+        }
+            
+       /* console.log(
+            player.xSpeed,
+            player.x >= platform.x + platform.width - player.width,
+            '|',
+            player.x,
+            platform.x + platform.width - player.width - 10,
+            '|',
+            platform.x,
+            platform.width,
+            player.width,
+            platform,
+            player
+        );*/
+        
+        if (player.xSpeed >= 0 && player.x >= platform.x + platform.width - player.width - 42
+         || player.xSpeed <= 0 && player.x <= platform.x - player.width) {
+             
+            
+        	player.xSpeed *= -1;
+        }
+        
+/*        if (enemy.x === that.enemyLockedTo.x || enemy.y === that.enemyLockedTo.y) {
+            enemy.body.velocity.x = enemy.body.velocity.x * -1;
+        }*/
         
     };
     
