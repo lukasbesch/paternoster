@@ -148,10 +148,10 @@
         },
         
         reachingEdge: function(player, platform) {
-            if (player.xSpeed <= 0 && player.x <= platform.x) {
+            if (player.xSpeed <= 0 && player.x <= platform.x + player.width / 2) {
                 return 'left';
             }
-            if (player.xSpeed >= 0 && player.x >= platform.x + platform.width) {
+            if (player.xSpeed >= 0 && player.x >= platform.x + platform.width - player.width / 2) {
                 return 'right';
             }
             return false;
