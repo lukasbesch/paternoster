@@ -6,7 +6,7 @@
             gravity:            600,
             distanceFloors:     112,
             cageDurationY:      3750,
-            enemySpeed:         120,
+            enemySpeed:         130,
             maxDropDistance:    112
         };
         
@@ -135,30 +135,90 @@
             
             var enemy = new Enemy('badguy', this,  48, 176,  1, this.options.enemySpeed);
             this.enemies.add(enemy);
+            
+            var enemy = new Enemy('badguy2', this,  248, 276,  1, this.options.enemySpeed);
+            this.enemies.add(enemy);
+            
+            var enemy = new Enemy('badguy3', this,  548, 376,  1, this.options.enemySpeed);
+            this.enemies.add(enemy);
 
         },
 
         preRender: function () {
-
+            
+            var that = this;
+            
             if (this.game.paused)
             {
                 //  Because preRender still runs even if your game pauses!
                 return;
             }
             
-            this.cages.forEach(function(cage){
+            this.enemies.forEach(function(player) {
+                   // console.log(player);
+                console.log(player);
                 
-                if (cage.lockedPlayers.length <= 0) {
-                    return;
+                if (player.locked || player.wasLocked) {
+                    
+                    player.x += player.lockedTo.deltaX;
+                    player.y = player.lockedTo.y - 24;
+            
+                    if (player.body.velocity.x !== 0)
+                    {
+                        player.body.velocity.y = 0;
+                    }
+                }
+
+                if (player.willJump)
+                {
+                    player.willJump = false;
+    
+                    if (player.lockedTo && player.lockedTo.deltaY < 0 && player.wasLocked)
+                    {
+                        //  If the platform is moving up we add its velocity to the players jump
+                        player.body.velocity.y = -300 + (player.lockedTo.deltaY * 10);
+                    }
+                    else
+                    {
+                        player.body.velocity.y = -300;
+                    }
+    
+                    player.jumpTimer = that.time.time + 750;
+                }
+    
+                if (player.wasLocked) {
+                    
+                    player.wasLocked = false;
+                    
+                    var lockedIndex = player.lockedTo.lockedPlayers.indexOf(player);
+                        
+                    if ( lockedIndex !== -1 ) {
+                        player.lockedTo.lockedPlayers.splice(lockedIndex, 1);
+                    }
+                    
+                    player.lockedTo = null;
                 }
                 
-                cage.lockedPlayers.forEach(function(player) {
+                return;
+                
+                if (player.locked) {
+                    player.checkLock(player);
+                }
+
+                if (player.wasLocked)
+                {
+                    player.wasLocked = false;
                     
-                    player.body.velocity.y = 0;
+                    player.lockedTo = false;
+        
+                    var lockedIndex = player.lockedTo.lockedPlayers.indexOf(player);
+                        
+                    if ( lockedIndex !== -1 ) {
+                        player.lockedTo.lockedPlayers.splice(lockedIndex, 1);
+                    }
                     
-                    player.x += cage.deltaX;
-                    player.y  = cage.y - 24;
-                });
+                    player.lockedTo = null;
+                }
                 
             });
             
@@ -222,11 +282,14 @@
                     
             player.game.cages.forEach(function( cage ) {
                 
+                //console.log(that.canReachPlatform(player, cage));
+                
                 if (!that.canReachPlatform(player, cage)) {
                     return;
                 }
                 
                 player.enterCage = cage;
+                player.leaveCage = false;
                 player.body.velocity.y = 0;
             });
             
@@ -240,6 +303,18 @@
         
         maybeLeaveCage: function(player, platform) {
             var that = this;
+            
+            var reachingEdge = this.reachingEdge(player, platform);
+            
+            if (!reachingEdge) {
+                return false;
+            } else
+            if (reachingEdge === 'right' && this.isInLeftHalf(player)) {
+                return false;
+            } else
+            if (reachingEdge === 'left' && this.isInRightHalf(player)) {
+                return false;
+            }
                     
             player.game.floors.forEach(function( floor ) {
                 
@@ -247,17 +322,17 @@
                     return;
                 }
                 
-                var index = platform.lockedPlayers.indexOf(player);
-                
-                if (index > -1) {
-                    platform.lockedPlayers.splice(index, 1);
-                }
-                
                 player.leaveCage = player.lockedTo;
-                player.enterPlatform = floor;
             });
             
             if (player.leaveCage) {
+                
+                if (player.locked) {
+                    player.cancelLock(player);
+                }
+
+                player.willJump = true;
+                
                 return true;
             }
             
@@ -332,11 +407,15 @@
     	this.anchor.setTo(0.5);
     	this.xSpeed = direction * speed;
     	
-        this.body.bounce.y = 0.2;
-        this.body.gravity.y = 300;
+        this.body.bounce.set(0);
+        /*this.body.gravity.y = 300;*/
         this.body.collideWorldBounds = true;
         
         this.enemyID = enemyID;
+        
+        this.locked   = false;
+        this.lockedTo = false;
+        this.wasLocked = false;
         
         this.enterCage = false;
         this.leaveCage = false;
@@ -349,47 +428,122 @@
     Enemy.prototype.constructor = Enemy;
     
     Enemy.prototype.update = function() {
-        this.game.physics.arcade.collide(this, this.game.floors, this.moveOrLeave, null, this);
+        this.game.physics.arcade.collide(this, this.game.environment);
+        
+        this.game.physics.arcade.collide(this, this.game.floors, this.moveOrLeaveFloor, null, this);
         this.game.physics.arcade.collide(this, this.game.cages, this.lift, null, this);
+        
         this.body.velocity.x = this.xSpeed;
+
+        if (this.locked)
+        {
+            this.checkLock(this);
+        }
+        
     };
     
     Enemy.prototype.moveOnPlatform = function (enemy, platform) {
-        if (this.game.reachingEdge(enemy, platform)) {
+        var reachingEdge = this.game.reachingEdge(enemy, platform);
+        if (!reachingEdge) {
+            return;
+        } else
+        if (reachingEdge === 'left' && enemy.xSpeed < 0
+            || reachingEdge === 'right' && enemy.xSpeed > 0) {
+                
             enemy.xSpeed *= -1;
         }
     };
     
-    Enemy.prototype.moveOrLeave = function (enemy, platform) {
+    Enemy.prototype.moveOrLeaveFloor = function (enemy, platform) {
         
-        if (!this.game.reachingEdge(enemy, platform)
-            || !this.game.maybeEnterCage(enemy, platform)) {
-            this.moveOnPlatform(enemy, platform);
-        };
+/*        console.log(
+            enemy.enterCage.length,
+            enemy.leaveCage.length
+        );*/
+        
+/*        if (platform.lockedPlayers.indexOf(enemy) !== -1) {
+            
+        }*/
+        
+        if (enemy.enterCage) {
+            return;
+        }
+        
+        enemy.leaveCage = false;
+        enemy.enterCage = false;
+        enemy.locked    = false;
+        enemy.lockedTo  = false;
+        
+        if (this.game.reachingEdge(enemy, platform) && this.game.maybeEnterCage(enemy, platform)) {
+            return;
+        }
+        
+        this.moveOnPlatform(enemy, platform);
         
     };
     
     Enemy.prototype.lift = function (enemy, platform) {
         
-        if ( platform.lockedPlayers.indexOf(enemy) === -1 && enemy.body.velocity.y > 0 ) {
+        console.log(
+            enemy, platform
+        );
+        
+        if (enemy.leaveCage) {
             
-            platform.lockedPlayers.push(enemy);
+            console.warn('leave cage');
             
-            enemy.enterCage = false;
-            enemy.lockedTo = platform;
+            this.cancelLock(enemy);
+            
+            return;
         }
         
-        console.log(!this.game.reachingEdge(enemy, platform));
+        if ( enemy.enterCage || !enemy.locked || platform.lockedPlayers.indexOf(enemy) < 0 /*&& enemy.body.velocity.y > 0 */) {
+            
+            enemy.enterCage = false;
+            enemy.leaveCage = false;
+            enemy.lockedTo  = platform;
+            enemy.locked    = true;
+            enemy.lockedTo.lockedPlayers.push(enemy);
+            
+            enemy.body.velocity.y = Math.min(0, enemy.body.velocity.y);
+            
+        }
         
-        if (!this.game.reachingEdge(enemy, platform)
-            || !this.game.maybeLeaveCage(enemy, platform)) {
-            this.moveOnPlatform(enemy, platform);
-        };
+        //console.log(!this.game.reachingEdge(enemy, platform));
         
+        if (this.game.maybeLeaveCage(enemy, platform)) {
+            return;
+        }
+        
+        this.moveOnPlatform(enemy, platform);
         
     };
     
     Enemy.prototype.checkLock = function (player) {
-    };
-
+        
+        player.body.velocity.y = 0;
+        
+        if (player.body.right < player.lockedTo.body.x || player.body.x > player.lockedTo.body.right) {
+            this.cancelLock(player);
+        }
+    };  
+    
+    Enemy.prototype.cancelLock = function (player) {
+        
+        console.info(player);
+        
+/*        var lockedIndex = player.lockedTo.lockedPlayers.indexOf(player);
+        
+        if ( lockedIndex !== -1 ) {
+            player.lockedTo.lockedPlayers.splice(lockedIndex, 1);
+        }*/
+        
+        player.wasLocked = true;
+        player.locked = false;
+            
+/*        player.locked    = false;
+        player.lockedTo  = false;*/
+    
+    };  
+    
     game.state.add('Game', PhaserGame, true);
