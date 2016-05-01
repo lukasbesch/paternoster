@@ -164,7 +164,6 @@
 
             this.player.body.collideWorldBounds = true;
             this.player.body.setSize(20, 32, 5, 16);
-            this.player.anchor.setTo(0.5);
 
             this.player.animations.add('left', [0, 1, 2, 3], 10, true);
             this.player.animations.add('turn', [4], 20, true);
@@ -210,7 +209,7 @@
             if (player.locked || player.wasLocked) {
                 
                 player.x += player.lockedTo.deltaX;
-                player.y = player.lockedTo.y - 24;
+                player.y = player.lockedTo.y - player.height;
             
                 if (player.body.velocity.x !== 0)
                 {
@@ -533,7 +532,7 @@
     var Enemy = function (enemyID, game, x, y, direction, speed) {
     	Phaser.Sprite.call(this, game, x, y, "enemy");
     	this.game.physics.arcade.enable(this);
-    	this.anchor.setTo(0.5);
+    	//this.anchor.setTo(0.5);
     	this.xSpeed = direction * speed;
     	
         this.body.bounce.set(0);
