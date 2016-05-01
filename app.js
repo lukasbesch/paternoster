@@ -6,8 +6,9 @@
             gravity:            600,
             distanceFloors:     112,
             cageDurationY:      3750,
-            enemySpeed:         130,
-            maxDropDistance:    112
+            enemySpeed:         125,
+            jumpVelocity:       100,
+            maxDropDistance:    99,
         };
         
         this.bg = null;
@@ -155,8 +156,6 @@
             }
             
             this.enemies.forEach(function(player) {
-                   // console.log(player);
-                console.log(player);
                 
                 if (player.locked || player.wasLocked) {
                     
@@ -176,11 +175,11 @@
                     if (player.lockedTo && player.lockedTo.deltaY < 0 && player.wasLocked)
                     {
                         //  If the platform is moving up we add its velocity to the players jump
-                        player.body.velocity.y = -300 + (player.lockedTo.deltaY * 10);
+                        player.body.velocity.y = -1 * that.options.jumpVelocity + (player.lockedTo.deltaY * 10);
                     }
                     else
                     {
-                        player.body.velocity.y = -300;
+                        player.body.velocity.y = -1 * that.options.jumpVelocity;
                     }
     
                     player.jumpTimer = that.time.time + 750;
@@ -200,25 +199,6 @@
                 }
                 
                 return;
-                
-                if (player.locked) {
-                    player.checkLock(player);
-                }
-
-                if (player.wasLocked)
-                {
-                    player.wasLocked = false;
-                    
-                    player.lockedTo = false;
-        
-                    var lockedIndex = player.lockedTo.lockedPlayers.indexOf(player);
-                        
-                    if ( lockedIndex !== -1 ) {
-                        player.lockedTo.lockedPlayers.splice(lockedIndex, 1);
-                    }
-                    
-                    player.lockedTo = null;
-                }
                 
             });
             
@@ -251,26 +231,35 @@
             return false;
         },
         
-        canReachPlatform: function(player, platform) {
+        canReachPlatform: function(player, platform, platformFrom) {
+            
+            var reachingEdge = this.reachingEdge(player, platformFrom);
+            
+            
+            if (this.isInLeftHalf(player) && !this.isInLeftHalf(platform)
+                || this.isInRightHalf(player) && !this.isInRightHalf(platform)) {
+                return false;
+            }
+            
+            if (player.locked) {
+                if (this.isInLeftHalf(player) && reachingEdge !== 'left'
+                    || this.isInRightHalf(player) && reachingEdge !== 'right') {
+                    return false;
+                }
+            } else {
+                if (this.isInLeftHalf(player) && reachingEdge !== 'right'
+                    || this.isInRightHalf(player) && reachingEdge !== 'left') {
+                    return false;
+                }
+            }
             
             // platform too high
-            if (platform.body.y <= player.y + player.height * 0.5) {
+            if (platform.body.y + (platform.deltaY * 10) <= player.y + player.height * 0.5) {
                 return false;
             }
+            
             // platform too low
-            if (platform.body.y >= player.y + player.height * 0.5 + this.options.maxDropDistance) {
-                return false;
-            }
-            
-            var leftTop = platform.x;
-            var rightTop = leftTop + platform.width;
-            
-            var distance = Math.min(
-                player.game.physics.arcade.distanceToXY( player, leftTop, platform.y ),
-                player.game.physics.arcade.distanceToXY( player, rightTop, platform.y )
-            );
-            
-            if( distance > this.options.maxDropDistance ) {
+            if (platform.body.y + (platform.deltaY * 10) >= player.y + player.height * 0.5 + this.options.maxDropDistance) {
                 return false;
             }
             
@@ -282,9 +271,7 @@
                     
             player.game.cages.forEach(function( cage ) {
                 
-                //console.log(that.canReachPlatform(player, cage));
-                
-                if (!that.canReachPlatform(player, cage)) {
+                if (!that.canReachPlatform(player, cage, platform)) {
                     return;
                 }
                 
@@ -303,22 +290,10 @@
         
         maybeLeaveCage: function(player, platform) {
             var that = this;
-            
-            var reachingEdge = this.reachingEdge(player, platform);
-            
-            if (!reachingEdge) {
-                return false;
-            } else
-            if (reachingEdge === 'right' && this.isInLeftHalf(player)) {
-                return false;
-            } else
-            if (reachingEdge === 'left' && this.isInRightHalf(player)) {
-                return false;
-            }
                     
             player.game.floors.forEach(function( floor ) {
                 
-                if (!that.canReachPlatform(player, floor)) {
+                if (!that.canReachPlatform(player, floor, platform)) {
                     return;
                 }
                 
@@ -456,15 +431,6 @@
     
     Enemy.prototype.moveOrLeaveFloor = function (enemy, platform) {
         
-/*        console.log(
-            enemy.enterCage.length,
-            enemy.leaveCage.length
-        );*/
-        
-/*        if (platform.lockedPlayers.indexOf(enemy) !== -1) {
-            
-        }*/
-        
         if (enemy.enterCage) {
             return;
         }
@@ -474,7 +440,7 @@
         enemy.locked    = false;
         enemy.lockedTo  = false;
         
-        if (this.game.reachingEdge(enemy, platform) && this.game.maybeEnterCage(enemy, platform)) {
+        if (this.game.maybeEnterCage(enemy, platform)) {
             return;
         }
         
@@ -484,13 +450,7 @@
     
     Enemy.prototype.lift = function (enemy, platform) {
         
-        console.log(
-            enemy, platform
-        );
-        
         if (enemy.leaveCage) {
-            
-            console.warn('leave cage');
             
             this.cancelLock(enemy);
             
@@ -508,8 +468,6 @@
             enemy.body.velocity.y = Math.min(0, enemy.body.velocity.y);
             
         }
-        
-        //console.log(!this.game.reachingEdge(enemy, platform));
         
         if (this.game.maybeLeaveCage(enemy, platform)) {
             return;
@@ -530,19 +488,8 @@
     
     Enemy.prototype.cancelLock = function (player) {
         
-        console.info(player);
-        
-/*        var lockedIndex = player.lockedTo.lockedPlayers.indexOf(player);
-        
-        if ( lockedIndex !== -1 ) {
-            player.lockedTo.lockedPlayers.splice(lockedIndex, 1);
-        }*/
-        
         player.wasLocked = true;
         player.locked = false;
-            
-/*        player.locked    = false;
-        player.lockedTo  = false;*/
     
     };  
     
