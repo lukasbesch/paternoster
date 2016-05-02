@@ -59,8 +59,8 @@
             this.load.image('cabin-ground', 'assets/cabin-ground.png');
             this.load.image('cabin-background', 'assets/cabin-background.png');
             
-            this.load.spritesheet('dude', 'assets/dude.png', 32, 48);
-            this.load.spritesheet('enemy', 'assets/dude.png', 32, 48);
+            this.load.spritesheet('dude', 'assets/player.png', 32, 48);
+            this.load.spritesheet('enemy', 'assets/enemy.png', 32, 48);
             
             this.load.image('scoreA', 'assets/star.png');
 

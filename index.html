@@ -6,8 +6,30 @@
 	<script type="text/javascript" src="./bower_components/phaser/build/phaser.js"></script>
 	<script type="text/javascript" src="./app.js"></script>
     <style type="text/css">
+
+        @font-face {
+          font-family: 'regular';
+          src: url('assets/regular.eot?#iefix') format('embedded-opentype'),
+               url('assets/regular.otf')  format('opentype'),
+        	   url('assets/regular.woff') format('woff'),
+        	   url('assets/regular.ttf')  format('truetype'),
+        	   url('assets/regular.svg#regular') format('svg');
+          font-weight: normal;
+          font-style: normal;
+        }
+        
         body {
             margin: 0;
+            background: #333;
+            font-family: 'regular', Verdana, sans-serif;
+        }
+        canvas {
+            margin: 0 auto;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            -webkit-transform: translate( -50%, -50% );
+            transform: translate( -50%, -50% );
         }
     </style>
 </head>
