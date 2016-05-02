@@ -45,7 +45,8 @@
 
         preload: function () {
     
-            this.load.image('sky', 'assets/sky.png');
+            this.load.image('bg', 'assets/bg.png');
+            this.load.image('bg-pause', 'assets/bg-pause.png');
             
             this.load.image('environment', 'assets/environment.png');
             this.load.image('platform', 'assets/platform.png');
@@ -70,11 +71,17 @@
             var that = this;
             
             // Add a simple background
-            this.bg = this.add.sprite(0, 0, 'sky').scale.setTo(1.5, 1.5);
+            this.bg = this.add.sprite(0, 0, 'bg');
+            this.bg.scale.setTo(1.5, 1.5);
 
             // Create Environment (wall)
             this.environment = this.add.physicsGroup();
             
+            this.environment.create(  0, 0, 'environment');
+            this.environment.create(640, 0, 'environment');
+            this.environment.create(  0, 592 + 16, 'environment');
+            this.environment.create(640, 592 + 16, 'environment');
+            this.environment.create(384, this.world.height - 16, 'lift-ground');
             this.environment.create(496, 160, 'wall');
             
             this.environment.setAll('body.allowGravity', false);
@@ -102,7 +109,7 @@
             // Score
             this.items = this.add.physicsGroup();
             this.createRandomItem();
-            this.scoreText = this.add.text(16, 16, '0', { fontSize: '32px', fill: '#000' });
+            this.scoreText = this.add.text(16, 16, '0', { fontSize: '32px', fill: '#fff' });
             
             // Create enemies
             this.enemies = this.add.physicsGroup();
@@ -212,7 +219,7 @@
             this.items.removeAll();
         },
         
-        createEnemies: function() {
+        createEnemies: function(enemyID) {
             
 /*            var enemy = new Enemy('badguy', this.game,  48, 176,  1, this.options.enemySpeed);
             this.enemies.add(enemy);*/
@@ -220,11 +227,20 @@
             /*var enemy = new Enemy('3L', this.game,  128, 320,  1, this.options.enemySpeed);
             this.enemies.add(enemy);*/
             
-            var enemy = new Enemy('2L', this.game,  192, 320 + 112,  1,  this.options.playerSpeed * 0.9);
-            this.enemies.add(enemy);
+            if (!enemyID || enemyID === '2L') {
+                var enemy = new Enemy('2L', this.game,  192, 320 + 112,  1,  this.options.playerSpeed * 0.9);
+                this.enemies.add(enemy);
+            }
             
-            var enemy = new Enemy('4R', this.game,  this.game.world.width - 256, 320 - 112, -1, this.options.playerSpeed * 1.6);
-            this.enemies.add(enemy);
+            if (!enemyID || enemyID === '4R') {
+                var enemy = new Enemy('4R', this.game,  this.game.world.width - 256, 320 - 112, -1, this.options.playerSpeed * 1.6);
+                this.enemies.add(enemy);
+            }
+            
+            if (!enemyID || enemyID === '1R') {
+                var enemy = new Enemy('1R', this.game,  this.game.world.width / 2 + 256, 592 - 112, -1, this.options.playerSpeed * 1.2);
+                this.enemies.add(enemy);
+            }
             
 /*            var enemy = new Enemy('badguy3', this.game,  548, 436,  -1, this.options.enemySpeed);
             this.enemies.add(enemy);
@@ -318,21 +334,34 @@
             this.physics.arcade.collide(this.player, this.enemies, this.playerDies, null, this);
         
             
-            this.physics.arcade.collide(this.enemies, this.environment);
+            this.physics.arcade.collide(this.enemies, this.environment, function(enemy, platform) {
+                if (!enemy.locked && enemy.body.touching.down) {
+                    var enemyID = enemy.enemyID;
+                    enemy.kill();
+                    this.createEnemies(enemyID);
+                    return;
+                }
+            }, null, this);
         
             this.physics.arcade.collide(this.enemies, this.floors, this.moveOrLeaveFloor, null, this);
             this.physics.arcade.collide(this.enemies, this.cages, this.lift, null, this);
             
-            this.physics.arcade.collide(this.player, this.environment, this.gravityDeath, null, this);
-            this.physics.arcade.collide(this.player, this.floors, function(player, platform) {
-                if (!player.body.touching.down) {
-                    //return;
+            this.physics.arcade.collide(this.player, this.environment, function(player, platform) {
+                if (!player.locked && player.body.touching.down) {
+                    this.playerDies();
+                    return;
                 }
+            }, null, this);
+            this.physics.arcade.collide(this.player, this.floors, function(player, platform) {
+                if (this.gravityDeath(player, platform)) {
+                    return;
+                }
+                
                 player.leaveCage = false;
                 player.enterCage = false;
                 player.locked    = false;
                 player.lockedTo  = false;
-            });
+            }, null, this);
             this.physics.arcade.collide(this.player, this.cages, this.customSep, null, this);
             
             //  Do this AFTER the collide check, or we won't have blocked/touching set
@@ -599,7 +628,7 @@
             this.lastScore = this.currentScore;
             
             if (this.lastScore > this.highScore) {
-                this.lastScore = this.currentScore;
+                this.highScore = this.currentScore;
                 msg += "\nNew Highscore: " + this.lastScore;
             } else {
             
@@ -610,12 +639,11 @@
             
             if (this.pauseOverlay) { this.pauseOverlay.destroy(); }
             
-            this.pauseOverlay = this.add.sprite(0, 0, 'sky');
+            this.pauseOverlay = this.add.sprite(0, 0, 'bg-pause');
             this.pauseOverlay.inputEnabled = true;
             this.pauseOverlay.scale.setTo(1.5, 1.5);
             
             this.pauseOverlay.events.onInputDown.add(this.restartGame, this);
-        
         
             var style = { font: "bold 32px Arial", fill: "#fff", boundsAlignH: "center", boundsAlignV: "middle" };
         
@@ -637,12 +665,11 @@
             
             this.pauseOverlay.alpha = 0;
             this.pauseText.alpha = 0;
-            console.log('now not visible', this.pauseText);
+            
+            this.pauseOverlay.events.onInputDown.removeAll();
             
             this.resetScore();
-            this.enemies.forEach(function(player) {
-                player.destroy();
-            });
+            this.enemies.removeAll();
             this.createEnemies();
             
             this.removeItems();
