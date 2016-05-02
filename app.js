@@ -11,7 +11,7 @@
             playerSpeed:        135,
             enemySpeed:         125,
             jumpVelocity:       32,
-            maxDropDistance:    72,
+            maxDropDistance:    64,
         };
         
         this.bg = null;
@@ -24,6 +24,11 @@
         
         this.items = null;
         this.currentScore = 0;
+        this.lastScore = 0;
+        this.highScore = 0;
+        
+        this.pauseOverlay = null;
+        this.pauseText = null;
     };
 
     PhaserGame.prototype = {
@@ -92,6 +97,25 @@
             
             //  Create moving platforms (cages)
             this.cages = this.add.physicsGroup();
+            this.createCages();
+            
+            // Score
+            this.items = this.add.physicsGroup();
+            this.createRandomItem();
+            this.scoreText = this.add.text(16, 16, '0', { fontSize: '32px', fill: '#000' });
+            
+            // Create enemies
+            this.enemies = this.add.physicsGroup();
+            this.createEnemies();
+            
+            // Create Player
+            this.createPlayer();
+            
+            this.cursors = this.input.keyboard.createCursorKeys();
+
+        },
+        
+        createCages: function() {
 
             var cage1 = new ElevatorCage(this.game, 384, 592 + this.options.distanceFloors, 'cabin-ground', this.cages);
             
@@ -145,22 +169,6 @@
             this.cages.setAll('body.immovable', true);
 
             this.cages.callAll('start');
-            
-            // Score
-            this.items = this.add.physicsGroup();
-            
-            this.createRandomItem();
-            
-            this.scoreText = this.add.text(16, 16, '0', { fontSize: '32px', fill: '#000' });
-            
-            // Create enemies
-            this.createEnemies();
-            
-            // Create Player
-            this.createPlayer();
-            
-            this.cursors = this.input.keyboard.createCursorKeys();
-
         },
         
         createPlayer: function() {
@@ -206,19 +214,17 @@
         
         createEnemies: function() {
             
-            this.enemies = this.add.group();
-            
 /*            var enemy = new Enemy('badguy', this.game,  48, 176,  1, this.options.enemySpeed);
             this.enemies.add(enemy);*/
             
             /*var enemy = new Enemy('3L', this.game,  128, 320,  1, this.options.enemySpeed);
             this.enemies.add(enemy);*/
             
-            var enemy = new Enemy('2L', this.game,  192, 320 + 112,  1, this.options.enemySpeed);
+            var enemy = new Enemy('2L', this.game,  192, 320 + 112,  1,  this.options.playerSpeed * 0.9);
             this.enemies.add(enemy);
             
-/*            var enemy = new Enemy('4R', this.game,  this.game.world.width - 256, 320 - 112, -1, this.options.enemySpeed * 1.5);
-            this.enemies.add(enemy);*/
+            var enemy = new Enemy('4R', this.game,  this.game.world.width - 256, 320 - 112, -1, this.options.playerSpeed * 1.6);
+            this.enemies.add(enemy);
             
 /*            var enemy = new Enemy('badguy3', this.game,  548, 436,  -1, this.options.enemySpeed);
             this.enemies.add(enemy);
@@ -317,7 +323,7 @@
             this.physics.arcade.collide(this.enemies, this.floors, this.moveOrLeaveFloor, null, this);
             this.physics.arcade.collide(this.enemies, this.cages, this.lift, null, this);
             
-            this.physics.arcade.collide(this.player, this.environment);
+            this.physics.arcade.collide(this.player, this.environment, this.gravityDeath, null, this);
             this.physics.arcade.collide(this.player, this.floors, function(player, platform) {
                 if (!player.body.touching.down) {
                     //return;
@@ -444,27 +450,27 @@
                 
             }
             
-            console.info(platform.body.top, futureY, player.body.bottom, this.options.maxDropDistance);
+            //console.info(platform.body.top, futureY, player.body.bottom, this.options.maxDropDistance);
             
             // platform too high
             if (platform.body.top + futureY < player.body.bottom) {
                 //console.log('platform too high');
-                console.warn(platform.body.top + futureY, player.body.bottom);
+                //console.warn(platform.body.top + futureY, player.body.bottom);
                 return false;
             } else {
-                console.log(platform.body.top + futureY, player.body.bottom);
+                //console.log(platform.body.top + futureY, player.body.bottom);
             }
             
             // platform too low
             if (platform.body.top + futureY > player.body.bottom + this.options.maxDropDistance) {
                 //console.log('platform too low', platform);
-                console.warn(platform.body.top + futureY, player.body.bottom + this.options.maxDropDistance);
+                //console.warn(platform.body.top + futureY, player.body.bottom + this.options.maxDropDistance);
                 return false;
             } else {
-                console.log(platform.body.top + futureY, player.body.bottom + this.options.maxDropDistance);
+                //console.log(platform.body.top + futureY, player.body.bottom + this.options.maxDropDistance);
             }
             
-            console.log('platform reachable');
+            //console.log('platform reachable');
             
             return true;
         },
@@ -472,7 +478,7 @@
         maybeEnterCage: function(player, platform) {
             var that = this;
             
-            console.log('maybeEnterCage');
+            //console.log('maybeEnterCage');
             
             player.enterCage = false;
             
@@ -486,7 +492,7 @@
                 
             });
             
-            console.warn('player.enterCage', player.enterCage);
+            //console.warn('player.enterCage', player.enterCage);
             
             if (player.enterCage) {
                 return true;
@@ -499,7 +505,7 @@
         maybeLeaveCage: function(player, platform) {
             var that = this;
             
-            console.log('maybeLeaveCage');
+            //console.log('maybeLeaveCage');
             
             player.leaveCage = false;
                     
@@ -527,8 +533,29 @@
             return false;
             
         },
+        
+        gravityDeath: function (player, platform) {
+            
+            var deltaMax = 6;
+            
+            if (platform && platform.deltaY > 0) {
+                deltaMax += platform.deltaY;
+            }
+            
+            if(player.deltaY < deltaMax) {
+                return false;
+            }
+            
+            this.playerDies();
+            
+            return true;
+        },
 
         customSep: function (player, platform) {
+            
+            if (this.gravityDeath(player, platform)) {
+                return;
+            }
         
             if ( !player.locked || !player.lockedTo || platform.lockedPlayers.indexOf(player) < 0 /*&& enemy.body.velocity.y > 0 */) {
                 
@@ -562,19 +589,70 @@
 
         },
         
-        playerDies: function (player, enemy) {
-            
-            //console.log(this);
+        playerDies: function () {
             
             //player.dead = true;
             //game.paused = true;
-            player.x = 64;
-            player.y = 64;
             
-            this.enemies.removeAll(true);
-            this.createEnemies();
+            var msg = "Game over!";
+            
+            this.lastScore = this.currentScore;
+            
+            if (this.lastScore > this.highScore) {
+                this.lastScore = this.currentScore;
+                msg += "\nNew Highscore: " + this.lastScore;
+            } else {
+            
+                msg += "\nScore: " + this.lastScore;
+                msg += "\nBest:  " + this.highScore;
+                
+            }
+            
+            if (this.pauseOverlay) { this.pauseOverlay.destroy(); }
+            
+            this.pauseOverlay = this.add.sprite(0, 0, 'sky');
+            this.pauseOverlay.inputEnabled = true;
+            this.pauseOverlay.scale.setTo(1.5, 1.5);
+            
+            this.pauseOverlay.events.onInputDown.add(this.restartGame, this);
+        
+        
+            var style = { font: "bold 32px Arial", fill: "#fff", boundsAlignH: "center", boundsAlignV: "middle" };
+        
+            if (this.pauseText) { this.pauseText.destroy(); }
+            
+            //  The Text is positioned at 0, 100
+            this.pauseText = this.add.text(0, 0, msg, style);
+            this.pauseText.setShadow(3, 3, 'rgba(0,0,0,0.5)', 2);
+        
+            //  We'll set the bounds to be from x0, y100 and be 800px wide by 100px high
+            this.pauseText.setTextBounds(0, this.game.world.height / 2 - 100, this.game.world.width, 200);
+            
+            
+            this.pauseOverlay.alpha = 1;
+            this.pauseText.alpha    = 1;
+        },
+        
+        restartGame: function() {
+            
+            this.pauseOverlay.alpha = 0;
+            this.pauseText.alpha = 0;
+            console.log('now not visible', this.pauseText);
+            
             this.resetScore();
+            this.enemies.forEach(function(player) {
+                player.destroy();
+            });
+            this.createEnemies();
+            
             this.removeItems();
+            this.createRandomItem();
+            
+            this.cages.removeAll();
+            this.createCages();
+            
+            this.player.destroy();
+            this.createPlayer();
             
         },
         
@@ -589,7 +667,7 @@
             this.currentScore += item.scoreValue;
             this.scoreText.text = this.currentScore;
             
-            item.kill();
+            item.destroy();
             
             this.createRandomItem();
             
