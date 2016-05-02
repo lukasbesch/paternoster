@@ -7,11 +7,11 @@
         this.options = {
             gravity:            600,
             distanceFloors:     112,
-            cageDurationY:      3750,
-            playerSpped:        125,
+            cageDurationY:      3900,
+            playerSpeed:        135,
             enemySpeed:         125,
-            jumpVelocity:       100,
-            maxDropDistance:    56,
+            jumpVelocity:       32,
+            maxDropDistance:    72,
         };
         
         this.bg = null;
@@ -21,6 +21,9 @@
         this.enemies  = null;
         
         this.player = null;
+        
+        this.items = null;
+        this.currentScore = 0;
     };
 
     PhaserGame.prototype = {
@@ -52,10 +55,14 @@
             
             this.load.spritesheet('dude', 'assets/dude.png', 32, 48);
             this.load.spritesheet('enemy', 'assets/dude.png', 32, 48);
+            
+            this.load.image('scoreA', 'assets/star.png');
 
         },
 
         create: function () {
+            
+            var that = this;
             
             // Add a simple background
             this.bg = this.add.sprite(0, 0, 'sky').scale.setTo(1.5, 1.5);
@@ -78,6 +85,10 @@
 
             this.floors.setAll('body.allowGravity', false);
             this.floors.setAll('body.immovable', true);
+            this.floors.setAll('body.checkCollision.up',    true);
+            this.floors.setAll('body.checkCollision.down',  false);
+            this.floors.setAll('body.checkCollision.left',  false);
+            this.floors.setAll('body.checkCollision.right', false);
             
             //  Create moving platforms (cages)
             this.cages = this.add.physicsGroup();
@@ -135,30 +146,26 @@
 
             this.cages.callAll('start');
             
+            // Score
+            this.items = this.add.physicsGroup();
+            
+            this.createRandomItem();
+            
+            this.scoreText = this.add.text(16, 16, '0', { fontSize: '32px', fill: '#000' });
+            
             // Create enemies
-            
-            this.enemies = this.add.group();
-            
-            var enemy = new Enemy('badguy', this.game,  48, 176,  1, this.options.enemySpeed);
-            this.enemies.add(enemy);
-            
-            var enemy = new Enemy('badguy2', this.game,  248, 276,  -1, this.options.enemySpeed);
-            this.enemies.add(enemy);
-            
-            var enemy = new Enemy('badguy3', this.game,  548, 376,  -1, this.options.enemySpeed);
-            this.enemies.add(enemy);
-            
-            var enemy = new Enemy('badguy4', this.game,  124, 476,  1, this.options.enemySpeed);
-            this.enemies.add(enemy);
-            
-            var enemy = new Enemy('badguy5', this.game,  758, 235,  -1, this.options.enemySpeed);
-            this.enemies.add(enemy);
-            
-            var enemy = new Enemy('badguy6', this.game,  this.game.world.width * 0.5 - 64, 125,  1, 0);
-            this.enemies.add(enemy);
+            this.createEnemies();
             
             // Create Player
-            this.player = this.add.sprite(32, 0, 'dude');
+            this.createPlayer();
+            
+            this.cursors = this.input.keyboard.createCursorKeys();
+
+        },
+        
+        createPlayer: function() {
+            
+            this.player = this.add.sprite(32, 160, 'dude');
 
             this.physics.arcade.enable(this.player);
 
@@ -178,9 +185,53 @@
             
             this.player.enterFloor = false;
             this.player.leaveFloor = false;
+        },
+        
+        createRandomItem: function() {
             
-            this.cursors = this.input.keyboard.createCursorKeys();
-
+            var onFloor = this.floors.getRandom();
+            
+            var itemPosX = this.getRandomInt(onFloor.body.left, onFloor.body.right - 32);
+            var itemPosY = onFloor.body.top - 32;
+            
+            this.items.create(itemPosX, itemPosY, 'scoreA');
+            
+            this.items.setAll('body.allowGravity', false);
+            this.items.setAll('body.immovable', true);
+        },
+        
+        removeItems: function() {
+            this.items.removeAll();
+        },
+        
+        createEnemies: function() {
+            
+            this.enemies = this.add.group();
+            
+/*            var enemy = new Enemy('badguy', this.game,  48, 176,  1, this.options.enemySpeed);
+            this.enemies.add(enemy);*/
+            
+            /*var enemy = new Enemy('3L', this.game,  128, 320,  1, this.options.enemySpeed);
+            this.enemies.add(enemy);*/
+            
+            var enemy = new Enemy('2L', this.game,  192, 320 + 112,  1, this.options.enemySpeed);
+            this.enemies.add(enemy);
+            
+/*            var enemy = new Enemy('4R', this.game,  this.game.world.width - 256, 320 - 112, -1, this.options.enemySpeed * 1.5);
+            this.enemies.add(enemy);*/
+            
+/*            var enemy = new Enemy('badguy3', this.game,  548, 436,  -1, this.options.enemySpeed);
+            this.enemies.add(enemy);
+            
+            var enemy = new Enemy('badguy4', this.game,  124, 476,  1, this.options.enemySpeed);
+            this.enemies.add(enemy);
+            
+            var enemy = new Enemy('badguy5', this.game,  758, 235,  -1, this.options.enemySpeed);
+            this.enemies.add(enemy);*/
+            
+/*            var enemy = new Enemy('badguy6', this.game,  this.game.world.width * 0.5 - 64, 125,  1, 0);
+            this.enemies.add(enemy);*/
+            
         },
 
         preRender: function () {
@@ -248,8 +299,18 @@
             }
             
         },
-
+        
+        getRandomInt: function(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        },
+        
         update: function () {
+            
+            var that = this;
+            
+            this.physics.arcade.collide(this.player, this.items, this.increaseScore, null, this);
+            this.physics.arcade.collide(this.player, this.enemies, this.playerDies, null, this);
+        
             
             this.physics.arcade.collide(this.enemies, this.environment);
         
@@ -330,30 +391,29 @@
         
         isInRightHalf: function(item) {
             
-            return (item.x + item.width * 0.5) >= this.game.world.width * 0.5;
+            return item.body.left >= this.game.world.width * 0.5;
             
         },
         
         isInLeftHalf: function(item) {
             
-            return (item.x + item.width * 0.5) < this.game.world.width * 0.5;
+            return item.body.right <= this.game.world.width * 0.5;
             
         },
         
         reachingEdge: function(player, platform) {
-            if (player.xSpeed <= 0 && player.x <= platform.x + player.width / 2) {
+            if (player.xSpeed <= 0 && player.body.left <= platform.body.left) {
                 return 'left';
             }
-            if (player.xSpeed >= 0 && player.x >= platform.x + platform.width - player.width / 2) {
+            if (player.xSpeed >= 0 && player.body.right >= platform.body.right) {
                 return 'right';
             }
             return false;
         },
         
-        canReachPlatform: function(player, platform, platformFrom) {
+        canReachPlatform: function(player, platform, platformFrom, mode) {
             
             var reachingEdge = this.reachingEdge(player, platformFrom);
-            
             
             if (this.isInLeftHalf(player) && !this.isInLeftHalf(platform)
                 || this.isInRightHalf(player) && !this.isInRightHalf(platform)) {
@@ -372,34 +432,61 @@
                 }
             }
             
+            var futureY;
             
+            if (mode === 'toMoving') {
+                
+                futureY = (platform.deltaY * 5);
+                
+            } else {
+                
+                futureY = (platformFrom.deltaY * 5) * -1;
+                
+            }
+            
+            console.info(platform.body.top, futureY, player.body.bottom, this.options.maxDropDistance);
             
             // platform too high
-            if (platform.body.y + (platform.deltaY * 20) <= player.y + player.height * 0.5) {
+            if (platform.body.top + futureY < player.body.bottom) {
+                //console.log('platform too high');
+                console.warn(platform.body.top + futureY, player.body.bottom);
                 return false;
+            } else {
+                console.log(platform.body.top + futureY, player.body.bottom);
             }
             
             // platform too low
-            if (platform.body.y + (platform.deltaY * 20) >= player.y + player.height * 0.5 + this.options.maxDropDistance) {
+            if (platform.body.top + futureY > player.body.bottom + this.options.maxDropDistance) {
+                //console.log('platform too low', platform);
+                console.warn(platform.body.top + futureY, player.body.bottom + this.options.maxDropDistance);
                 return false;
+            } else {
+                console.log(platform.body.top + futureY, player.body.bottom + this.options.maxDropDistance);
             }
+            
+            console.log('platform reachable');
             
             return true;
         },
         
         maybeEnterCage: function(player, platform) {
             var that = this;
-                    
+            
+            console.log('maybeEnterCage');
+            
+            player.enterCage = false;
+            
             that.cages.forEach(function( cage ) {
                 
-                if (!!that.canReachPlatform(player, cage, platform)) {
-                    player.enterCage = cage;
+                if (true === that.canReachPlatform(player, cage, platform, 'toMoving')) {
+                    player.enterCage = true;
                     player.leaveCage = false;
                     player.body.velocity.y = 0;
                 }
-            
                 
             });
+            
+            console.warn('player.enterCage', player.enterCage);
             
             if (player.enterCage) {
                 return true;
@@ -411,18 +498,22 @@
         
         maybeLeaveCage: function(player, platform) {
             var that = this;
+            
+            console.log('maybeLeaveCage');
+            
+            player.leaveCage = false;
                     
             this.floors.forEach(function( floor ) {
                 
-                if (!!that.canReachPlatform(player, floor, platform)) {
+                if (!!that.canReachPlatform(player, floor, platform, 'fromMoving')) {
                     
-                    player.leaveCage = player.lockedTo;
+                    player.leaveCage = true;
                     player.enterCage = false;
                     player.body.velocity.y = 0;
                 }
             });
             
-            if (!!player.leaveCage) {
+            if (player.leaveCage) {
                 
                 if (player.locked) {
                     this.cancelLock(player);
@@ -470,6 +561,47 @@
             player.locked = false;
 
         },
+        
+        playerDies: function (player, enemy) {
+            
+            //console.log(this);
+            
+            //player.dead = true;
+            //game.paused = true;
+            player.x = 64;
+            player.y = 64;
+            
+            this.enemies.removeAll(true);
+            this.createEnemies();
+            this.resetScore();
+            this.removeItems();
+            
+        },
+        
+        increaseScore: function(player, item) {
+            
+            if (item.key == 'scoreA') {
+                item.scoreValue = 10;
+            }
+            
+            //console.log(item.scoreValue);
+            
+            this.currentScore += item.scoreValue;
+            this.scoreText.text = this.currentScore;
+            
+            item.kill();
+            
+            this.createRandomItem();
+            
+            if( this.items < 3 ) {
+                this.time.events.add(Phaser.Timer.SECOND * this.getRandomInt(3, 8), this.createRandomItem, this);
+            }
+        },
+        
+        resetScore: function() {
+            this.currentScore = 0;
+            this.scoreText.text = this.currentScore;
+        }
 
     };
     
@@ -489,6 +621,11 @@
         this.body.customSeparateY = true;
         this.body.allowGravity = false;
         this.body.immovable = true;
+        
+        this.body.checkCollision.up = true;
+        this.body.checkCollision.down = false;
+        this.body.checkCollision.left = false;
+        this.body.checkCollision.right = false;
 
         this.lockedPlayers = [];
 
@@ -547,9 +684,6 @@
         
         this.enterCage = false;
         this.leaveCage = false;
-        
-        this.enterFloor = false;
-        this.leaveFloor = false;
 
         this.animations.add('left', [0, 1, 2, 3], 10, true);
         this.animations.add('turn', [4], 20, true);
