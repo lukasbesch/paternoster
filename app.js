@@ -109,7 +109,7 @@
             // Score
             this.items = this.add.physicsGroup();
             this.createRandomItem();
-            this.scoreText = this.add.text(16, 16, '0', { fontSize: '32px', fill: '#fff' });
+            this.scoreText = this.add.text(16, 16, this.currentScore, { fontSize: '32px', fill: '#fff' });
             
             // Create enemies
             this.enemies = this.add.physicsGroup();
@@ -228,12 +228,12 @@
             this.enemies.add(enemy);*/
             
             if (!enemyID || enemyID === '2L') {
-                var enemy = new Enemy('2L', this.game,  192, 320 + 112,  1,  this.options.playerSpeed * 0.9);
+                var enemy = new Enemy('2L', this.game, 246, 320 + 112,  1,  this.options.playerSpeed * 1.4);
                 this.enemies.add(enemy);
             }
             
             if (!enemyID || enemyID === '4R') {
-                var enemy = new Enemy('4R', this.game,  this.game.world.width - 256, 320 - 112, -1, this.options.playerSpeed * 1.6);
+                var enemy = new Enemy('4R', this.game,  this.game.world.width - 380, 320 - 112 + 112, 1, this.options.playerSpeed * 1.6);
                 this.enemies.add(enemy);
             }
             
@@ -623,7 +623,7 @@
             //player.dead = true;
             //game.paused = true;
             
-            var msg = "Game over!";
+            var msg = "";
             
             this.lastScore = this.currentScore;
             
@@ -636,6 +636,8 @@
                 msg += "\nBest:  " + this.highScore;
                 
             }
+            
+            msg += "\n\nClick to try again …";
             
             if (this.pauseOverlay) { this.pauseOverlay.destroy(); }
             
