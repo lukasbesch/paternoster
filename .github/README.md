@@ -7,8 +7,8 @@ Simple HTML5 game built with [Phaser](https://github.com/photonstorm/phaser).
 Use your left and right arrow keys to move around. Use the [paternoster](https://wikipedia.org/wiki/Paternoster) lift to collect the stars but don't let your enemies catch you!
 Stay in the loop!
 
-[Play demo online](https://lukasbesch.com/paternoster)
+[» Play demo online «](https://lukasbesch.github.io/paternoster/)
 
-![Screenshot of Gameplay][screenshot]
+[![Screenshot of Gameplay][screenshot]](https://lukasbesch.github.io/paternoster/)
 
 [screenshot]: https://github.com/lukasbesch/paternoster/blob/master/assets/screenshot.png "Logo Title Text 2"
